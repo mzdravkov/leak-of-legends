@@ -1,8 +1,12 @@
 # leak-of-legends
 A project for the Applied Statistics university course at Sofia University: Analysis of data from League of Legends games.
 
+
+
 ## Is it any good?
 Most probably, no.
+
+
 
 ## Statistical analysis
 
@@ -135,6 +139,8 @@ Error in model.frame.default(Terms, newdata, na.action = na.action, xlev = attr(
 
 Since our dataset is really not big enough, it is normal that some of the Role/Champion pairs that are present in the test set didn't appear in the training set. Lets see how dire is the situation:
 
+
+
 ```R
 length(test_set$blueTopChamp[!(test_set$blueTopChamp %in% training_set$blueTopChamp)])
 [1] 22
@@ -144,10 +150,15 @@ length(test_set$blueTopChamp[!(test_set$blueTopChamp %in% training_set$blueTopCh
 
 The above piece of code tells us how many rows in the test set have champions for the "Top lane" role that were never played for that role in the training set. These rows cannot be predicted and we should remove them.  We want to see if there's too many such rows. The total number of such rows will be less or equal than the sum of all unknown role/champion pairs for each predictor. Lets check this out:
 
+
+
+
 ```R
 count <- 0
 for (predictor in names(test_set)[2:11]) {
-    count <- count + length(get(predictor, test_set)[!(get(predictor, test_set) %in% get(predictor, training_set))])
+  column <- get(predictor, test_set)
+  unseen <- length(column[!(column %in% get(predictor, training_set))])
+  count <- count + unseen
 }
 count
 [1] 105
@@ -156,3 +167,72 @@ count
 
 
 Less than 105 out of 2145, this seems okay. Lets remove these unpredictable cases from the test set. (Note that the more data we have the more this problem will disappear. Also, we can employ a more advanced algorithm for creating a training set, but let's keep it simple)
+
+
+
+```R
+indices <- list()
+for (predictor in names(test_set)[2:11]) {
+  new_indices <- which(!(get(predictor, test_set) %in% get(predictor, training_set)))
+  indices <- append(indices, new_indices)
+}
+indices_to_remove <- unique(indices)
+```
+
+
+
+And the actual number of the rows which we'll remove is:
+
+```R
+length(indices_to_remove)
+[1] 100
+```
+
+
+
+Take the predictable subset of the test set:
+
+```R
+predictable_test_set <- test_set[! 1:nrow(test_set) %in% indices_for_remove, ]
+```
+
+
+
+We run the test set through the model and get our predictions:
+
+```R
+predictions <- predict(model, predictable_test_set, method="class")
+```
+
+```R
+head(predictions)
+          0         1
+1 0.6600000 0.3400000
+2 0.1659389 0.8340611
+3 0.3333333 0.6666667
+4 0.6951220 0.3048780
+5 0.1659389 0.8340611
+6 0.6600000 0.3400000
+```
+
+
+
+We will normalize the results by taking only the second column and if the probability is greater or equal to 0.5, then the prediction is 1, else it's 0.
+
+```R
+normalized_predictions <- ifelse(predictions[, 2] >= 0.5, 1, 0)
+```
+
+
+
+And finally, we test how accurate is our model:
+
+```R
+summary(predictable_test_set$bResult == normalized_predictions)
+   Mode   FALSE    TRUE    NA's 
+logical     977    1068       0 
+```
+
+
+
+And that's **52.22%** success rate, which corresponds to our preliminary expectations. This results indicates that the it is hard/impossible to give good predictions of the game outcome by knowing only the champions that were selected by the two teams. Which is a positive result since it means that the powers of the champions in the game are not too unbalanced.
