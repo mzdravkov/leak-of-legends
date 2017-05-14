@@ -1,5 +1,5 @@
 # leak-of-legends
-A project for the Applied Statistics university course at Sofia University: Analysis of data from League of Legends games.
+A project for the Applied Statistics university course at Sofia University: An analysis of data from League of Legends games.
 
 
 
@@ -8,11 +8,8 @@ Most probably, no.
 
 
 
-## Statistical analysis
 
-
-
-### Short description of League of Legends
+## Short description of League of Legends
 
 There are two teams: blue and red, which have their bases at the bottom left and upper right corners accordingly. Each team consists of 5 player, playing 5 unique (in the team) champions and strives to destroy the base of the enemy. Before being able to go to the enemy base the team has to destroy the defense towers placed on the enemy side of the terrain. Periodically, the base of each team summons a wave of minions, which move toward the enemy base on each of the three lanes and mindlessly attack every enemy unit on their way.
 
@@ -23,6 +20,8 @@ There are two teams: blue and red, which have their bases at the bottom left and
 There's an unwritten rule or tactic, which virtually all teams play by: there is an Attack Damage carry (ranged fighter, which inflicts physical damage) and a healer on the bottom lane, a mage on the middle lane, one champion on the top lane and one inside the jungle (who every now and then will attempt surprise attacks on the lanes).
 
 
+## Statistical analysis
+
 
 ### Problem #1: is it possible to predict (with at least some degree of accuracy) the outcome of the game only by the champions selected for each role in the two teams.
 
@@ -32,7 +31,13 @@ The expected result is that we shouldn't be able to do such prediction (at least
 
 #### Creating a test set
 
-~~It would be desirable to have a lot of game records for each possible combination of champions. However, for the period our dataset is from (games between 2015 and 2017), the number of champions in the game was between 125 and 135. This means that the number of possible combinations is around  $$ 2 \times \binom{135}{5} = 693400554$$, because the same champion can be picked in both teams). Our dataset contains the data for only 3645, so clearly we don't have such amounts of  data.~~
+Let's load the dataset:
+
+```R
+library(readr)
+LeagueofLegends <- read_csv("LeagueofLegends.csv")
+View(LeagueofLegends)
+```
 
 
 
@@ -75,7 +80,7 @@ set.seed(42)
 We pick random indexes for creating a training set:
 
 ```R
-training_set_indexes = sample(nrow(picks_and_result), 1500)
+training_set_indexes <- sample(nrow(picks_and_result), 1500)
 ```
 
 
@@ -236,3 +241,337 @@ logical     977    1068       0
 
 
 And that's **52.22%** success rate, which corresponds to our preliminary expectations. This results indicates that the it is hard/impossible to give good predictions of the game outcome by knowing only the champions that were selected by the two teams. Which is a positive result since it means that the powers of the champions in the game are not too unbalanced.
+
+
+
+### Problem #2: Predict the outcome of the game after N minutes of the game has already passed
+
+We load the datasets:
+
+```R
+library(readr)
+goldValues <- read_csv("goldValues.csv")
+View(goldValues)
+```
+
+and also
+
+```R
+deathValues <- read_csv("deathValues.csv")
+View(deathValues)
+```
+
+
+
+```R
+head(goldValues)
+# A tibble: 6 × 83
+                                                                                        MatchHistory NameType min_1 min_2 min_3 min_4 min_5 min_6 min_7 min_8
+                                                                                               <chr>    <chr> <int> <int> <int> <int> <int> <int> <int> <int>
+1 http://matchhistory.na.leagueoflegends.com/en/#match-details/TRLH1/30030?gameHash=fbb300951ad8327c golddiff     0     0   -14   -65  -268  -431  -488  -789
+2 http://matchhistory.na.leagueoflegends.com/en/#match-details/TRLH1/30054?gameHash=055b17da8456fdc8 golddiff     0     0   -26   -18   147   237  -152    18
+3 http://matchhistory.na.leagueoflegends.com/en/#match-details/TRLH1/30067?gameHash=8e8a9b58df366e2d golddiff     0     0    10   -60    34    37   589  1064
+4 http://matchhistory.na.leagueoflegends.com/en/#match-details/TRLH1/30091?gameHash=0ed1cd0e0e57329c golddiff     0     0   -15    25   228    -6  -243   175
+5 http://matchhistory.na.leagueoflegends.com/en/#match-details/TRLH1/30105?gameHash=f932becf86175f38 golddiff    40    40    44   -36   113   158  -121  -191
+6 http://matchhistory.na.leagueoflegends.com/en/#match-details/TRLH1/30131?gameHash=194c672d7969984f golddiff     0     0    20   -42   -48   -24  -219  -272
+# ... with 73 more variables: min_9 <int>, min_10 <int>, min_11 <int>, min_12 <int>, min_13 <int>, min_14 <int>, min_15 <int>, min_16 <int>, min_17 <int>,
+#   min_18 <int>, min_19 <int>, min_20 <int>, min_21 <int>, min_22 <int>, min_23 <int>, min_24 <int>, min_25 <int>, min_26 <int>, min_27 <int>, min_28 <int>,
+#   min_29 <int>, min_30 <int>, min_31 <int>, min_32 <int>, min_33 <int>, min_34 <int>, min_35 <int>, min_36 <int>, min_37 <int>, min_38 <int>, min_39 <int>,
+#   min_40 <int>, min_41 <int>, min_42 <int>, min_43 <int>, min_44 <int>, min_45 <int>, min_46 <int>, min_47 <int>, min_48 <int>, min_49 <int>, min_50 <int>,
+#   min_51 <int>, min_52 <int>, min_53 <int>, min_54 <int>, min_55 <int>, min_56 <int>, min_57 <int>, min_58 <int>, min_59 <int>, min_60 <int>, min_61 <int>,
+#   min_62 <int>, min_63 <int>, min_64 <int>, min_65 <int>, min_66 <int>, min_67 <int>, min_68 <int>, min_69 <chr>, min_70 <chr>, min_71 <chr>, min_72 <chr>,
+#   min_73 <chr>, min_74 <chr>, min_75 <chr>, min_76 <chr>, min_77 <chr>, min_78 <chr>, min_79 <chr>, min_80 <chr>, min_81 <chr>
+```
+
+
+
+Our dataset has data for 3645 games, yet the goldValues set has 47385 rows.
+
+```R
+unique(goldValues$NameType)
+ [1] "golddiff"        "goldblue"        "goldred"         "goldblueTop"     "goldblueJungle"  "goldblueMiddle"  "goldblueADC"     "goldblueSupport"
+ [9] "goldredTop"      "goldredJungle"   "goldredMiddle"   "goldredADC"      "goldredSupport" 
+```
+
+
+
+In order to keep it simpler, we will take only the `golddiff` rows from this set. So, effectively, what we have in each row is the difference between the amounts of gold accumulated by the two teams until each minute. The difference is from the point of view of the Blue team. Let's take the first row to exemplify that:
+
+| MatchHistory                             | NameType | min_1 | min_2 | min_3 | min_4 | min_5 |
+| ---------------------------------------- | -------- | ----- | ----- | ----- | ----- | ----- |
+| http://matchhistory.na.leagueoflegends.com/en/#match-details/TRLH1/30030?gameHash=fbb300951ad8327c | golddiff | 0     | 0     | -14   | -65   | -268  |
+
+
+
+The interpretation of the above data is as follows: for the first two minutes of the game, the two teams have had the same amount of gold (minions and creatures are spawned after around two minutes of the game start, hence nobody acquired any gold). Then by the third minute the red team had 14 gold more and by the 5th they had 268 gold more, etc.
+
+
+
+```R
+goldDiffs <- goldValues[goldValues$NameType == "golddiff", ]
+```
+
+
+
+We will add the `bResult` column from `LeagueofLegends` to `goldDiffs`:
+
+```R
+goldDiffs$bResult = LeagueofLegends$bResult
+```
+
+
+
+We pick random indexes for creating a training set:
+
+```R
+training_set_indexes <- sample(nrow(goldDiffs), 1500)
+```
+
+
+
+We then take the training subset from the whole dataset:
+
+```R
+training_set <- goldDiffs[training_set_indexes, ]
+```
+
+
+
+And create a test set with all rows which aren't part of the training set:
+
+```R
+test_set <- goldDiffs[-training_set_indexes, ]
+```
+
+
+
+### Delete until proper solution
+
+
+
+
+
+```R
+lin_model <- glm(bResult ~ ., family = binomial(link = 'logit'), data = training_set[, c(4:60, 84)])
+```
+
+
+
+```R
+predictions <- predict(lin_model, test_set[, c(4:60)])
+```
+
+
+
+```R
+fitted_results <- ifelse(predictions > 0.5,1,0)
+```
+
+
+
+
+
+
+
+```R
+blueGold <- goldValues[goldValues$NameType == "goldblue", ]
+redGold <- goldValues[goldValues$NameType == "goldred", ]
+```
+
+
+
+```R
+gold <- merge(blueGold[, c(1, 4:47)], redGold[, c(1, 4:47)], by="MatchHistory")
+```
+
+```R
+gold <- merge(gold, LeagueofLegends[, c(1, 6)], by="MatchHistory")
+```
+
+
+
+```R
+lin_model <- glm(bResult ~ ., family = binomial(link = 'logit'), data = training_set[, 2:90])
+Warning message:
+glm.fit: algorithm did not converge 
+```
+
+
+
+
+
+```R
+lin_model <- glm(bResult ~ ., family = binomial(link = 'logit'), data = training_set[, 2:90], control = list(maxit = 50))
+```
+
+
+
+
+
+
+
+```R
+at30 <- goldDiffs[, c("MatchHistory", "min_30")]
+```
+
+```R
+at30_with_result <- merge(at30, LeagueofLegends[, c("MatchHistory", "bResult")])
+```
+
+```R
+at30_with_result_norm <- na.omit(at30_with_result)
+```
+
+```R
+training_set_indexes <- sample(nrow(at30_with_	result_norm), 1500)
+training_set <- at30_with_result_norm[training_set_indexes, ]
+test_set <- at30_with_result_norm[-training_set_indexes, ]
+```
+
+
+
+
+
+### Proper solution:
+
+
+
+
+
+```R
+training_set_per_5 <- training_set[, c("MatchHistory", "min_5", "min_10", "min_15", "min_20", "min_25", "min_30", "min_35", "min_40", "min_45", "bResult")]
+```
+
+
+
+```R
+test_set_per_5 <- test_set[, c("MatchHistory", "min_5", "min_10", "min_15", "min_20", "min_25", "min_30", "min_35", "min_40", "min_45", "bResult")]
+```
+
+
+
+
+
+```R
+training_set_fitted_lines <- data.frame()
+for (i in 1:nrow(training_set_per_5)) {
+    row <- training_set_per_5[i, ]
+    data <- data.frame(x = c(5, 10, 15, 20, 25, 30, 35, 40, 45), y = as.numeric(as.vector(row[, 2:10])))
+    model <- lm(y ~ x, data = data)
+  	new_row <- merge(row[, c("MatchHistory", "bResult")], data.frame(model$coefficients[1], model$coefficients[2]))
+    training_set_fitted_lines <- rbind(training_set_fitted_lines, new_row)
+}
+colnames(training_set_fitted_lines) <- c("MatchHistory", "bResult", "intersect", "y")
+```
+
+
+
+```R
+model <- glm(bResult ~ ., family = binomial(link = 'logit'), data = training_set_fitted_lines[, 2:4])
+```
+
+
+
+
+```R
+test_set_fitted_lines <- data.frame()
+for (i in 1:nrow(test_set_per_5)) {
+    row <- test_set_per_5[i, ]
+    data <- data.frame(x = c(5, 10, 15, 20, 25, 30, 35, 40, 45), y = as.numeric(as.vector(row[, 2:10])))
+    model <- lm(y ~ x, data = data)
+  	new_row <- merge(row[, c("MatchHistory", "bResult")], data.frame(model$coefficients[1], model$coefficients[2]))
+    test_set_fitted_lines <- rbind(test_set_fitted_lines, new_row)
+}
+colnames(test_set_fitted_lines) <- c("MatchHistory", "bResult", "intersect", "y")
+```
+
+
+
+
+
+```
+predictions <- predict(model, test_set_fitted_lines)
+```
+
+```R
+fitted_results <- ifelse(predictions > 0.5, 1, 0)
+```
+
+```R
+summary(test_set_fitted_lines$bResult == fitted_results)
+   Mode   FALSE    TRUE 
+logical     203    1942 
+```
+
+
+
+
+Additionally, we will try to use the data from the `deathValues` set. Let's see what do we got there:
+
+
+
+```R
+head(deathValues)
+# A tibble: 6 × 9
+                                                                                        MatchHistory TeamColor   Time         Victim         Killer     Assist_1
+                                                                                               <chr>     <chr>  <dbl>          <chr>          <chr>        <chr>
+1 http://matchhistory.na.leagueoflegends.com/en/#match-details/TRLH1/30030?gameHash=fbb300951ad8327c      Blue 10.820         C9 Hai   TSM Bjergsen         <NA>
+2 http://matchhistory.na.leagueoflegends.com/en/#match-details/TRLH1/30030?gameHash=fbb300951ad8327c      Blue 16.286 C9 LemonNation TSM WildTurtle TSM Santorin
+3 http://matchhistory.na.leagueoflegends.com/en/#match-details/TRLH1/30030?gameHash=fbb300951ad8327c      Blue 18.733         C9 Hai   TSM Bjergsen TSM Santorin
+4 http://matchhistory.na.leagueoflegends.com/en/#match-details/TRLH1/30030?gameHash=fbb300951ad8327c      Blue 18.880      C9 Meteos      TSM Dyrus TSM Santorin
+5 http://matchhistory.na.leagueoflegends.com/en/#match-details/TRLH1/30030?gameHash=fbb300951ad8327c      Blue 27.005       C9 Balls   TSM Bjergsen    TSM Dyrus
+6 http://matchhistory.na.leagueoflegends.com/en/#match-details/TRLH1/30030?gameHash=fbb300951ad8327c      Blue 27.029 C9 LemonNation      TSM Dyrus TSM Bjergsen
+# ... with 3 more variables: Assist_2 <chr>, Assist_3 <chr>, Assist_4 <chr>
+```
+
+
+
+We can see that we have multiple rows for the same match. Each row represent a kill and we have the team color of the killer, the time of the kill and who participated in the "murder". We will ignore the victim, the killer and the assists so that it is simpler for us. However we could've decided to find from the `LeagueofLegends.csv` dataset what champions are the killer and the victim and use this additional information to make a stronger model. 
+
+One problem with the above dataset is that we have multiple rows for the same match, while the `goldValues` set has a single row per match (which is easier to use). In order to merge the sets, we will change the format of `deathValues` to mirror that of `goldValues`. Namely, we will want to have a column for each minute of the game the value of which will be the difference between the kills made until that minute for the two teams.
+
+
+
+First, we group the `deathValues` dataset by matches:
+
+```R
+deaths_grouped <- split.data.frame(deathValues, deathValues$MatchHistory)
+```
+
+
+```R
+library(rlist)
+
+table <- list()
+names <- list.prepend(lapply(1:60, function(x) paste("kill", x, sep="_")), "MatchName")
+setNames(table, names)
+  
+matches_count <- length(deaths_grouped)
+processed <- 1 
+  
+for (name in names(deaths_grouped)) {
+  	print(paste(processed , "/", matches_count, "| Working on", name))
+  	row <- list.prepend(as.list(rep(0, 60)), name)
+  	kills <- 0
+	for (i in 2: 61) {
+		start_min <- i - 2
+		end_min <- i - 1
+      	unsplitted_deaths <- unsplit(deaths_grouped[name], name) 
+		for (kill_index in 1:nrow(unsplitted_deaths)) {
+          	kill <- unsplitted_deaths[kill_index, ]
+			if (kill["Time"] > start_min && kill["Time"] < end_min) {
+				if (kill["TeamColor"] == "Blue") {
+                  	kills <- kills + 1
+					# row[[i]] <- row[[i]] + 1
+				} else {
+                  	kills <- kills - 1
+					# row[[i]] <- row[[i]] - 1
+				}
+			}
+		}
+     	row[[i]] <- kills
+	}
+	table <- list.append(table, row)
+  	processed <- processed + 1
+}
+```
