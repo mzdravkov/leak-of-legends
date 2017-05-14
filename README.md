@@ -345,168 +345,142 @@ test_set <- goldDiffs[-training_set_indexes, ]
 
 
 
-### Delete until proper solution
-
-
-
-
+We will take only the values per 5 minutes:
 
 ```R
-lin_model <- glm(bResult ~ ., family = binomial(link = 'logit'), data = training_set[, c(4:60, 84)])
+training_set_per_5 <- training_set[, c("MatchHistory", "bResult", "min_5", "min_10", "min_15", "min_20", "min_25", "min_30", "min_35", "min_40", "min_45")]
+```
+
+```R
+test_set_per_5 <- test_set[, c("MatchHistory", "bResult", "min_5", "min_10", "min_15", "min_20", "min_25", "min_30", "min_35", "min_40", "min_45")]
 ```
 
 
 
-```R
-predictions <- predict(lin_model, test_set[, c(4:60)])
-```
+For each match, we have a set of points (with the minute - 5, 10, 15... - on the X axis and the gold difference on the Y axis):
+
+![Gold differences for a single match (every 5 minutes)](gold_diffs_for_a_single_match.png)
 
 
 
-```R
-fitted_results <- ifelse(predictions > 0.5,1,0)
-```
-
-
-
-
-
-
+We will create a function which takes a set with the form of the above two sets and a minute (5, 10, 15, ..., 45) and which returns the coefficients of lines that are fitted through the gold differences of each match. 
 
 ```R
-blueGold <- goldValues[goldValues$NameType == "goldblue", ]
-redGold <- goldValues[goldValues$NameType == "goldred", ]
-```
-
-
-
-```R
-gold <- merge(blueGold[, c(1, 4:47)], redGold[, c(1, 4:47)], by="MatchHistory")
-```
-
-```R
-gold <- merge(gold, LeagueofLegends[, c(1, 6)], by="MatchHistory")
-```
-
-
-
-```R
-lin_model <- glm(bResult ~ ., family = binomial(link = 'logit'), data = training_set[, 2:90])
-Warning message:
-glm.fit: algorithm did not converge 
-```
-
-
-
-
-
-```R
-lin_model <- glm(bResult ~ ., family = binomial(link = 'logit'), data = training_set[, 2:90], control = list(maxit = 50))
-```
-
-
-
-
-
-
-
-```R
-at30 <- goldDiffs[, c("MatchHistory", "min_30")]
-```
-
-```R
-at30_with_result <- merge(at30, LeagueofLegends[, c("MatchHistory", "bResult")])
-```
-
-```R
-at30_with_result_norm <- na.omit(at30_with_result)
-```
-
-```R
-training_set_indexes <- sample(nrow(at30_with_	result_norm), 1500)
-training_set <- at30_with_result_norm[training_set_indexes, ]
-test_set <- at30_with_result_norm[-training_set_indexes, ]
-```
-
-
-
-
-
-### Proper solution:
-
-
-
-
-
-```R
-training_set_per_5 <- training_set[, c("MatchHistory", "min_5", "min_10", "min_15", "min_20", "min_25", "min_30", "min_35", "min_40", "min_45", "bResult")]
-```
-
-
-
-```R
-test_set_per_5 <- test_set[, c("MatchHistory", "min_5", "min_10", "min_15", "min_20", "min_25", "min_30", "min_35", "min_40", "min_45", "bResult")]
-```
-
-
-
-
-
-```R
-training_set_fitted_lines <- data.frame()
-for (i in 1:nrow(training_set_per_5)) {
-    row <- training_set_per_5[i, ]
-    data <- data.frame(x = c(5, 10, 15, 20, 25, 30, 35, 40, 45), y = as.numeric(as.vector(row[, 2:10])))
+fit_lines <- function(set, minute) {
+  fitted_lines <- data.frame()
+  for (i in 1:nrow(set)) {
+    row <- set[i, ]
+    data <- data.frame(x = seq(1, minute, 5), y = as.numeric(as.vector(row[, 3:(2+minute/5)])))
     model <- lm(y ~ x, data = data)
   	new_row <- merge(row[, c("MatchHistory", "bResult")], data.frame(model$coefficients[1], model$coefficients[2]))
-    training_set_fitted_lines <- rbind(training_set_fitted_lines, new_row)
+    fitted_lines <- rbind(fitted_lines, new_row)
+  }
+  colnames(fitted_lines) <- c("MatchHistory", "bResult", "intersect", "y")
+  return(fitted_lines)
 }
-colnames(training_set_fitted_lines) <- c("MatchHistory", "bResult", "intersect", "y")
 ```
 
 
+
+Example usage:
 
 ```R
-model <- glm(bResult ~ ., family = binomial(link = 'logit'), data = training_set_fitted_lines[, 2:4])
+head(fit_lines(training_set_per_5, minute=20))
+                                                                                             MatchHistory bResult intersect       y
+1     http://matchhistory.na.leagueoflegends.com/en/#match-details/TRKR1/920064?gameHash=59329523fdd4d423       1    -62.68   77.58
+2     http://matchhistory.na.leagueoflegends.com/en/#match-details/TRKR1/600085?gameHash=be2d41460ace9b23       0   -151.90 -192.10
+3 http://matchhistory.na.leagueoflegends.com/en/#match-details/TRLH3/1001220096?gameHash=898e47758375b6fb       0    351.28 -144.18
+4      http://matchhistory.na.leagueoflegends.com/en/#match-details/TRTW/780077?gameHash=20f746e24dad2d21       0    380.60 -190.60
+5 http://matchhistory.na.leagueoflegends.com/en/#match-details/TRLH3/1001010041?gameHash=25af3b79c61f6270       1  -1690.48  418.38
+6 http://matchhistory.na.leagueoflegends.com/en/#match-details/TRLH1/1001760217?gameHash=4c0eef4bc6a24f18       0   -667.84 -543.96
 ```
 
 
 
+Then we create a simple function that will generate a model from the intermediate dataset with fitted lines:
 
 ```R
-test_set_fitted_lines <- data.frame()
-for (i in 1:nrow(test_set_per_5)) {
-    row <- test_set_per_5[i, ]
-    data <- data.frame(x = c(5, 10, 15, 20, 25, 30, 35, 40, 45), y = as.numeric(as.vector(row[, 2:10])))
-    model <- lm(y ~ x, data = data)
-  	new_row <- merge(row[, c("MatchHistory", "bResult")], data.frame(model$coefficients[1], model$coefficients[2]))
-    test_set_fitted_lines <- rbind(test_set_fitted_lines, new_row)
+create_lol_model <- function(training_set, minute) {
+  fitted_lines <- fit_lines(training_set, minute)
+  model <- glm(bResult ~ ., family = binomial(link = 'logit'), data = fitted_lines[, 2:4])
+  return(model)
 }
-colnames(test_set_fitted_lines) <- c("MatchHistory", "bResult", "intersect", "y")
 ```
 
 
 
+Let's create model for the 45th minute of the game:
 
-
+```R
+model <- create_lol_model(training_set_per_5, minute=45)
 ```
+
+
+
+The test set must also be in the same format:
+
+```R
+test_set_fitted_lines <- fit_lines(test_set_per_5, minute=45)
+```
+
+
+
+Now we can try to predict the matches in the test set:
+
+```R
 predictions <- predict(model, test_set_fitted_lines)
 ```
+
+
+
+Then we just normalize the results to be either 0 or 1:
 
 ```R
 fitted_results <- ifelse(predictions > 0.5, 1, 0)
 ```
 
+
+
+And finally we can test how successful our model is:
+
 ```R
 summary(test_set_fitted_lines$bResult == fitted_results)
    Mode   FALSE    TRUE 
-logical     203    1942 
+logical     200    1945 
 ```
 
 
 
+So, at the 45th minute of the game, the model can predict correctly **90.68%** of the matches. Let's try how well it can do at the 20th minute:
 
-Additionally, we will try to use the data from the `deathValues` set. Let's see what do we got there:
+
+
+```R
+model_20 <- create_lol_model(training_set_per_5, minute=20)
+test_set_fitted_lines_20 <- fit_lines(test_set_per_5, minute=20)
+predictions_20 <- predict(model, test_set_fitted_lines_20)
+fitted_results_20 <- ifelse(predictions_20 > 0.5, 1, 0)
+summary(test_set_fitted_lines_20$bResult == fitted_results_20)
+   Mode   FALSE    TRUE 
+logical     541    1604 
+```
+
+
+
+This is still pretty good result: **74.78%**
+
+
+
+
+
+
+
+### ~~Use deathValues  set~~
+
+
+
+
+~~Additionally, we will try to use the data from the `deathValues` set. Let's see what do we got there:~~
 
 
 
@@ -526,13 +500,13 @@ head(deathValues)
 
 
 
-We can see that we have multiple rows for the same match. Each row represent a kill and we have the team color of the killer, the time of the kill and who participated in the "murder". We will ignore the victim, the killer and the assists so that it is simpler for us. However we could've decided to find from the `LeagueofLegends.csv` dataset what champions are the killer and the victim and use this additional information to make a stronger model. 
+~~We can see that we have multiple rows for the same match. Each row represent a kill and we have the team color of the killer, the time of the kill and who participated in the "murder". We will ignore the victim, the killer and the assists so that it is simpler for us. However we could've decided to find from the `LeagueofLegends.csv` dataset what champions are the killer and the victim and use this additional information to make a stronger model.~~ 
 
-One problem with the above dataset is that we have multiple rows for the same match, while the `goldValues` set has a single row per match (which is easier to use). In order to merge the sets, we will change the format of `deathValues` to mirror that of `goldValues`. Namely, we will want to have a column for each minute of the game the value of which will be the difference between the kills made until that minute for the two teams.
+~~One problem with the above dataset is that we have multiple rows for the same match, while the `goldValues` set has a single row per match (which is easier to use). In order to merge the sets, we will change the format of `deathValues` to mirror that of `goldValues`. Namely, we will want to have a column for each minute of the game the value of which will be the difference between the kills made until that minute for the two teams.~~
 
 
 
-First, we group the `deathValues` dataset by matches:
+~~First, we group the `deathValues` dataset by matches:~~
 
 ```R
 deaths_grouped <- split.data.frame(deathValues, deathValues$MatchHistory)
